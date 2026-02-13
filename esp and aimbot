@@ -1,0 +1,191 @@
+--[[
+ESP & WATCHLINE (KUN PÅ ANDRE)
+- ESP på alle andre: PÅ
+- ESP på deg selv: AV
+- Watchline fra brystet: PÅ (Kun på fiender)
+- Watch Detector: PÅ
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local Settings = {
+    TeamCheck = true,
+    BoxColor = Color3.fromRGB(0, 255, 140),
+    WatchColor = Color3.fromRGB(170, 0, 255), 
+    DangerColor = Color3.fromRGB(255, 0, 0),
+    TracerLength = 55,
+    PrecisionThreshold = 0.97 
+}
+
+local ESP_Table = {}
+
+local function CreateESP(Player)
+    -- VIKTIG: Dette stopper ESP-en fra å dukke opp på deg selv
+    if Player == LocalPlayer then return end
+    if ESP_Table[Player] then return end
+    
+    local Visuals = {
+        Lines = {},
+        WatchLine = Drawing.new("Line"),
+        Name = Drawing.new("Text")
+    }
+    for i = 1, 12 do 
+        local l = Drawing.new("Line")
+        l.Thickness = 1; l.Visible = false
+        table.insert(Visuals.Lines, l) 
+    end
+    Visuals.WatchLine.Thickness = 2
+    Visuals.Name.Center = true; Visuals.Name.Outline = true; Visuals.Name.Size = 13
+    ESP_Table[Player] = Visuals
+end
+
+RunService.RenderStepped:Connect(function()
+    local MyChar = LocalPlayer.Character
+    local MyRoot = MyChar and MyChar:FindFirstChild("HumanoidRootPart")
+
+    for Player, Visuals in pairs(ESP_Table) do
+        local Char = Player.Character
+        local Root = Char and Char:FindFirstChild("HumanoidRootPart")
+        local Head = Char and Char:FindFirstChild("Head")
+
+        if Root and Head and MyRoot then
+            local Pos, OnScreen = Camera:WorldToViewportPoint(Root.Position)
+            
+            -- Sjekk om de ser på deg (Head LookVector)
+            local DirToMe = (MyRoot.Position - Head.Position).Unit
+            local IsLooking = Head.CFrame.LookVector:Dot(DirToMe) > Settings.PrecisionThreshold
+
+            if OnScreen then
+                local CurrentColor = IsLooking and Settings.DangerColor or Settings.BoxColor
+                
+                -- Watchline fra brystet (Root) med horisontal fiks
+                local Look = Head.CFrame.LookVector
+                local FixedDir = Vector3.new(Look.X, 0, Look.Z).Unit
+                
+                local StartPoint = Camera:WorldToViewportPoint(Root.Position)
+                local EndPoint = Camera:WorldToViewportPoint(Root.Position + (FixedDir * Settings.TracerLength))
+                
+                Visuals.WatchLine.From = Vector2.new(StartPoint.X, StartPoint.Y)
+                Visuals.WatchLine.To = Vector2.new(EndPoint.X, EndPoint.Y)
+                Visuals.WatchLine.Color = IsLooking and Settings.DangerColor or Settings.WatchColor
+                Visuals.WatchLine.Visible = true
+
+                -- 3D BOKS
+                local cf = Root.CFrame
+                local s = Vector3.new(2, 3, 1.2)
+                local p = {
+                    Camera:WorldToViewportPoint((cf * CFrame.new(-s.X, s.Y, -s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(s.X, s.Y, -s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(-s.X, -s.Y, -s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(s.X, -s.Y, -s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(-s.X, s.Y, s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(s.X, s.Y, s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(-s.X, -s.Y, s.Z)).Position),
+                    Camera:WorldToViewportPoint((cf * CFrame.new(s.X, -s.Y, s.Z)).Position)
+                }
+                
+                local function L(n, p1, p2)
+                    local l = Visuals.Lines[n]
+                    l.From = Vector2.new(p1.X, p1.Y); l.To = Vector2.new(p2.X, p2.Y)
+                    l.Color = CurrentColor; l.Visible = true
+                end
+                L(1,p[1],p[2]); L(2,p[2],p[4]); L(3,p[4],p[3]); L(4,p[3],p[1])
+                L(5,p[5],p[6]); L(6,p[6],p[8]); L(7,p[8],p[7]); L(8,p[7],p[5])
+                L(9,p[1],p[5]); L(10,p[2],p[6]); L(11,p[3],p[7]); L(12,p[4],p[8])
+
+                Visuals.Name.Text = Player.Name .. (IsLooking and " [!]" or "")
+                Visuals.Name.Position = Vector2.new(Pos.X, p[1].Y - 20)
+                Visuals.Name.Color = CurrentColor; Visuals.Name.Visible = true
+            else
+                Visuals.WatchLine.Visible = false; Visuals.Name.Visible = false
+                for _, l in pairs(Visuals.Lines) do l.Visible = false end
+            end
+        else
+            if Visuals then
+                Visuals.WatchLine.Visible = false; Visuals.Name.Visible = false
+                for _, l in pairs(Visuals.Lines) do l.Visible = false end
+            end
+        end
+    end
+end)
+
+for _, p in pairs(Players:GetPlayers()) do CreateESP(p) end
+Players.PlayerAdded:Connect(CreateESP)
+-- aimbot normal
+local TOGGLE_KEY = Enum.KeyCode.E
+local FOV_RADIUS = 300 
+local isEnabled = false
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- Create the FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 2
+FOVCircle.Transparency = 1
+FOVCircle.Visible = true
+FOVCircle.Radius = FOV_RADIUS
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+
+-- Create the Center Dot
+local CenterDot = Drawing.new("Circle")
+CenterDot.Thickness = 1
+CenterDot.Filled = true -- Solid dot
+CenterDot.Transparency = 1
+CenterDot.Visible = true
+CenterDot.Radius = 3 -- Small dot size
+CenterDot.Color = Color3.fromRGB(255, 0, 0)
+
+-- Function to find the closest player
+local function getClosestInFOV()
+    local closest, dist = nil, FOV_RADIUS
+    local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+
+    for _, otherPlayer in ipairs(Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Head") then
+            local screenPos, onScreen = camera:WorldToViewportPoint(otherPlayer.Character.Head.Position)
+            
+            if onScreen then
+                local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                if mouseDist < FOV_RADIUS and mouseDist < dist then
+                    closest = otherPlayer
+                    dist = mouseDist
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Toggle logic
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == TOGGLE_KEY then
+        isEnabled = not isEnabled
+        local newColor = isEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        FOVCircle.Color = newColor
+        CenterDot.Color = newColor
+    end
+end)
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    
+    -- Keep visuals centered
+    FOVCircle.Position = centerPos
+    CenterDot.Position = centerPos
+    
+    if isEnabled then
+        local target = getClosestInFOV()
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Character.Head.Position)
+        end
+    end
+end)
