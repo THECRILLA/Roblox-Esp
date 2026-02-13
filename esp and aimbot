@@ -28,8 +28,7 @@ local function CreateESP(Player)
     if ESP_Table[Player] then return end
     
     local Visuals = {
-        Lines = {},
-        WatchLine = Drawing.new("Line"),
+    
         Name = Drawing.new("Text")
     }
     for i = 1, 12 do 
@@ -57,21 +56,6 @@ RunService.RenderStepped:Connect(function()
             -- Sjekk om de ser på deg (Head LookVector)
             local DirToMe = (MyRoot.Position - Head.Position).Unit
             local IsLooking = Head.CFrame.LookVector:Dot(DirToMe) > Settings.PrecisionThreshold
-
-            if OnScreen then
-                local CurrentColor = IsLooking and Settings.DangerColor or Settings.BoxColor
-                
-                -- Watchline fra brystet (Root) med horisontal fiks
-                local Look = Head.CFrame.LookVector
-                local FixedDir = Vector3.new(Look.X, 0, Look.Z).Unit
-                
-                local StartPoint = Camera:WorldToViewportPoint(Root.Position)
-                local EndPoint = Camera:WorldToViewportPoint(Root.Position + (FixedDir * Settings.TracerLength))
-                
-                Visuals.WatchLine.From = Vector2.new(StartPoint.X, StartPoint.Y)
-                Visuals.WatchLine.To = Vector2.new(EndPoint.X, EndPoint.Y)
-                Visuals.WatchLine.Color = IsLooking and Settings.DangerColor or Settings.WatchColor
-                Visuals.WatchLine.Visible = true
 
                 -- 3D BOKS
                 local cf = Root.CFrame
